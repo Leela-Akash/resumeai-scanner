@@ -13,7 +13,7 @@ import services.firebase_service  # noqa: F401
 
 from routes.analyze import router as analyze_router
 from routes.history import router as history_router
-from routes.payment import router as payment_router
+from routes.stripe_payment import router as stripe_router
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -34,7 +34,7 @@ app.add_middleware(
 
 app.include_router(analyze_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
-app.include_router(payment_router, prefix="/api")
+app.include_router(stripe_router, prefix="/api")
 
 
 @app.get("/health")
