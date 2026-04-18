@@ -31,7 +31,8 @@ export default function UploadSection({ onResult }) {
       const { data } = await api.post('/api/analyze', form)
       onResult(data)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Something went wrong. Try again.')
+      setError(err.response?.data?.detail || err.message || 'Something went wrong. Try again.')
+      console.error('Analyze error:', err)
     } finally {
       setLoading(false)
     }
