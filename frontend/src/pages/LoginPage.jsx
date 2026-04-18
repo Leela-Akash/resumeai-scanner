@@ -11,7 +11,7 @@ export default function LoginPage() {
     try {
       await signInWithGoogle()
     } catch (err) {
-      setError('Login failed. Please try again.')
+      setError(err.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
