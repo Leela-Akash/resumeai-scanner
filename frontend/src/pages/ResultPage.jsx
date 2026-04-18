@@ -111,29 +111,37 @@ export default function ResultPage() {
         <motion.section variants={sectionVariants} className="space-y-6">
           <h2 className="text-lg font-semibold text-ink tracking-tight">Structural Adjustments</h2>
           <div className="flex flex-col gap-6">
-            {result.weak_bullets.map((weak, i) => {
-              const improved = result.improved_bullets[i]
-              if (!improved) return null
-              
-              return (
-                <div key={i} className="flex flex-col md:flex-row gap-4 p-5 bg-surface border border-white/[0.04] rounded-lg">
-                  <div className="flex-1 space-y-2">
+            {result.bullet_analysis?.length > 0 ? result.bullet_analysis.map((b, i) => (
+              <div key={i} className="flex flex-col md:flex-row gap-4 p-5 bg-surface border border-white/[0.04] rounded-lg">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-ink-muted uppercase tracking-widest">Current Fragment</span>
-                    <p className="text-sm text-ink-muted leading-relaxed">{weak}</p>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                      b.grade === 'A' ? 'bg-truth-green/20 text-truth-green' :
+                      b.grade === 'B' ? 'bg-clarity/20 text-clarity' :
+                      b.grade === 'C' ? 'bg-truth-amber/20 text-truth-amber' :
+                      'bg-truth-red/20 text-truth-red'
+                    }`}>Grade {b.grade}</span>
                   </div>
-                  
-                  <div className="flex items-center justify-center py-2 md:py-0 px-2 text-ink-muted">
-                    <ArrowRight className="w-5 h-5 hidden md:block" />
-                  </div>
-
-                  <div className="flex-1 space-y-2">
-                    <span className="text-xs font-medium text-truth-green uppercase tracking-widest">Optimized Structure</span>
-                    <p className="text-sm text-ink leading-relaxed">{improved}</p>
-                  </div>
+                  <p className="text-sm text-ink-muted leading-relaxed">{b.bullet}</p>
+                  {b.issues?.length > 0 && (
+                    <p className="text-xs text-truth-red/70">{b.issues.join(' · ')}</p>
+                  )}
                 </div>
-              )
-            })}
-            {result.weak_bullets.length === 0 && (
+
+                {b.improved && (
+                  <>
+                    <div className="flex items-center justify-center py-2 md:py-0 px-2 text-ink-muted">
+                      <ArrowRight className="w-5 h-5 hidden md:block" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <span className="text-xs font-medium text-truth-green uppercase tracking-widest">Optimized Structure</span>
+                      <p className="text-sm text-ink leading-relaxed">{b.improved}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )) : (
               <p className="text-sm text-ink-muted">No structural weaknesses detected in bullet points.</p>
             )}
           </div>
