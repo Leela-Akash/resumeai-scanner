@@ -85,7 +85,7 @@ export default function ResultPage() {
                 <Check className="w-4 h-4" /> Matched Context
               </h3>
               <div className="flex flex-wrap gap-2">
-                {result.matched_keywords.length > 0 ? result.matched_keywords.map((kw, i) => (
+                {result.matched_keywords?.length > 0 ? result.matched_keywords.map((kw, i) => (
                   <span key={i} className="px-3 py-1 bg-truth-green/10 text-truth-green text-sm font-medium rounded">
                     {kw}
                   </span>
@@ -97,7 +97,7 @@ export default function ResultPage() {
                 <X className="w-4 h-4" /> Missing Context
               </h3>
               <div className="flex flex-wrap gap-2">
-                {result.missing_keywords.length > 0 ? result.missing_keywords.map((kw, i) => (
+                {result.missing_keywords?.length > 0 ? result.missing_keywords.map((kw, i) => (
                   <span key={i} className="px-3 py-1 bg-truth-red/10 text-truth-red text-sm font-medium rounded">
                     {kw}
                   </span>
