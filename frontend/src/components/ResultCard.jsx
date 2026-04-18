@@ -30,23 +30,25 @@ export default function ResultCard({ result, onScanAgain }) {
       </div>
 
       {/* Bullets */}
-      <div className="bg-slate-800 rounded-2xl p-8 space-y-5">
-        <h3 className="text-lg font-semibold text-white">Bullet Point Improvements</h3>
-        {result.weak_bullets.map((weak, i) => (
-          <div key={i} className="space-y-2">
-            <div className="p-4 rounded-xl bg-red-900/20 border border-red-800/50">
-              <p className="text-xs text-red-400 font-medium mb-1">WEAK</p>
-              <p className="text-sm text-slate-300 leading-relaxed">{weak}</p>
-            </div>
-            {result.improved_bullets[i] && (
-              <div className="p-4 rounded-xl bg-green-900/20 border border-green-800/50">
-                <p className="text-xs text-green-400 font-medium mb-1">IMPROVED</p>
-                <p className="text-sm text-slate-300 leading-relaxed">{result.improved_bullets[i]}</p>
+      {result.bullet_analysis?.length > 0 && (
+        <div className="bg-slate-800 rounded-2xl p-8 space-y-5">
+          <h3 className="text-lg font-semibold text-white">Bullet Point Improvements</h3>
+          {result.bullet_analysis.map((b, i) => (
+            <div key={i} className="space-y-2">
+              <div className="p-4 rounded-xl bg-red-900/20 border border-red-800/50">
+                <p className="text-xs text-red-400 font-medium mb-1">WEAK — Grade {b.grade}</p>
+                <p className="text-sm text-slate-300 leading-relaxed">{b.bullet}</p>
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              {b.improved && (
+                <div className="p-4 rounded-xl bg-green-900/20 border border-green-800/50">
+                  <p className="text-xs text-green-400 font-medium mb-1">IMPROVED</p>
+                  <p className="text-sm text-slate-300 leading-relaxed">{b.improved}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <button
         onClick={onScanAgain}
