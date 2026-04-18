@@ -7,3 +7,4 @@ firebase-admin==6.5.0
 python-dotenv==1.0.1
 slowapi==0.1.9
 python-jose==3.3.0
+stripe==9.12.0
