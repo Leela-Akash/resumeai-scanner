@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import api from '../utils/api'
 
-export default function UploadSection({ onResult, onAnalyzeRequest }) {
+export default function UploadSection({ onResult }) {
   const [file, setFile] = useState(null)
   const [jd, setJd] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,8 +22,6 @@ export default function UploadSection({ onResult, onAnalyzeRequest }) {
   const handleAnalyze = async () => {
     if (!file) return setError('Please upload a PDF resume.')
     if (!jd.trim()) return setError('Please paste a job description.')
-    if (onAnalyzeRequest && !onAnalyzeRequest()) return
-
     setError('')
     setLoading(true)
     try {

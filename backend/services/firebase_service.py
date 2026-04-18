@@ -61,13 +61,6 @@ def increment_scan_count(uid: str):
     })
 
 
-def update_user_plan(uid: str, plan: str):
-    db.collection("users").document(uid).update({
-        "plan": plan,
-        "scansLimit": 999,
-    })
-
-
 def get_user_scans(uid: str):
     docs = (
         db.collection("scans")

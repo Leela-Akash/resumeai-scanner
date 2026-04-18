@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from middleware.verify_token import verify_token
 from services.firebase_service import get_user, create_user
 
@@ -14,12 +14,6 @@ def check_subscription(decoded: dict = Depends(verify_token)) -> dict:
             name=decoded.get("name", ""),
             photo=decoded.get("picture", ""),
         )
-        user = {"plan": "free", "scansUsed": 0, "scansLimit": 3}
-
-    if user.get("plan", "free") == "free" and user.get("scansUsed", 0) >= 3:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="FREE_LIMIT_REACHED",
-        )
+        user = {"plan": "free", "scansUsed": 0, "scansLimit": 999}
 
     return {**user, "uid": uid}
