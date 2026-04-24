@@ -208,8 +208,10 @@ def calculate_ats_score(
     )
     breakdown["education_match"] = edu_score
 
-    # 4. Keyword density (20%)
-    jd_keywords = jd_data.get("industry_keywords", []) + jd_data.get("required_skills", [])
+    # 4. Keyword density (20%) — use only industry_keywords, not required_skills (already counted in skills)
+    jd_keywords = list(set(jd_data.get("industry_keywords") or []))
+    if not jd_keywords:
+        jd_keywords = list(set(jd_data.get("required_skills") or []))
     keyword_hits = count_keyword_matches(resume_text, jd_keywords)
     keyword_score = min((keyword_hits / max(len(jd_keywords), 1)) * 20, 20)
     breakdown["keyword_density"] = round(keyword_score)
