@@ -1,13 +1,14 @@
+import logging
+import os
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from dotenv import load_dotenv
-from datetime import datetime
-import logging
-import os
 
 load_dotenv()
 
@@ -19,10 +20,17 @@ import services.firebase_service  # noqa: F401
 
 from routes.analyze import router as analyze_router
 from routes.history import router as history_router
+from services.llm import close_client
+from services.rate_limit import limiter
 
-limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(title="ResumeAI Scanner API")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    yield
+    await close_client()
+
+
+app = FastAPI(title="ResumeAI Scanner API", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -37,14 +45,14 @@ app.add_middleware(
         "https://leela-akash.github.io",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled error on {request.method} {request.url}: {exc}")
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error. Please try again."},
@@ -61,7 +69,7 @@ async def health():
     firebase_status = "up" if os.getenv("FIREBASE_PROJECT_ID") else "missing_key"
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "services": {
             "groq": groq_status,
             "firebase": firebase_status,

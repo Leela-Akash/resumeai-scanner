@@ -14,11 +14,9 @@ Set these in Render Dashboard → your service → Environment tab.
 | `FIREBASE_PROJECT_ID` | Firebase project ID | Firebase Console → Project Settings |
 | `FIREBASE_CLIENT_EMAIL` | Firebase service account email | Firebase Console → Project Settings → Service Accounts → Generate Key |
 | `FIREBASE_PRIVATE_KEY` | Firebase private key (with `\n` newlines) | Same JSON file as above |
-| `STRIPE_SECRET_KEY` | Stripe secret key | https://dashboard.stripe.com → Developers → API Keys |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | Stripe Dashboard → Webhooks → your endpoint → Signing secret |
-| `STRIPE_PRO_PRICE_ID` | Stripe price ID for Pro plan ($9/mo) | Stripe Dashboard → Products → Pro → Price ID |
-| `STRIPE_PREMIUM_PRICE_ID` | Stripe price ID for Premium plan ($19/mo) | Stripe Dashboard → Products → Premium → Price ID |
 | `FRONTEND_URL` | Your frontend domain | `https://getshortlisted.me` |
+| `FREE_SCAN_LIMIT` | Optional. Scans allowed per free user. `0` or unset = unlimited | Leave unset until paid plans exist |
+| `GROQ_MODEL` | Optional. Groq model id | Defaults to `llama-3.3-70b-versatile` |
 
 ### FIREBASE_PRIVATE_KEY format on Render
 Paste the key exactly as it appears in the JSON file.
@@ -59,7 +57,9 @@ VITE_BACKEND_URL=http://localhost:8000
 3. Enable Google Authentication:
    - Authentication → Sign-in method → Google → Enable
 4. Create Firestore database:
-   - Firestore Database → Create database → Start in test mode → Mumbai region
+   - Firestore Database → Create database → Start in production mode → Mumbai region
+   - Rules tab → paste the contents of `firestore.rules` from this repo → Publish
+     (test mode lets anyone read and write every document, and expires after 30 days)
 5. Get web app config:
    - Project Settings → Your apps → Web → Register app → copy firebaseConfig
 6. Get service account key (for backend):
@@ -70,24 +70,6 @@ VITE_BACKEND_URL=http://localhost:8000
 8. Create Firestore index:
    - Firestore → Indexes → Add index
    - Collection: `scans`, Fields: `userId` ASC + `createdAt` DESC
-
----
-
-## Stripe Setup Steps
-
-1. Go to https://stripe.com → create account
-2. Create Pro product:
-   - Products → Add product → Name: "Pro Plan" → Price: $9/month recurring
-   - Copy the Price ID (starts with `price_`)
-3. Create Premium product:
-   - Same steps → Name: "Premium Plan" → Price: $19/month recurring
-4. Get API keys:
-   - Developers → API Keys → copy Secret key (starts with `sk_live_`)
-5. Set up webhook:
-   - Developers → Webhooks → Add endpoint
-   - URL: `https://resumeai-scanner.onrender.com/api/stripe-webhook`
-   - Events: `checkout.session.completed`
-   - Copy Signing secret (starts with `whsec_`)
 
 ---
 

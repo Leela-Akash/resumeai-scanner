@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// The backend uses the Admin SDK, which bypasses these rules.
+// These rules only limit what the browser can do with a signed-in user's token.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      // First sign-in creates the profile. Users can't give themselves a paid plan or reset their count.
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.plan == 'free'
+        && request.resource.data.scansUsed == 0;
+      allow update, delete: if false;
+    }
+
+    match /scans/{scanId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+  }
+}
