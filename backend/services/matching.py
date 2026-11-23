@@ -78,3 +78,18 @@ def match_keywords(jd_keywords: list[str], resume_keywords: list[str], resume_te
     total = len(matched) + len(missing)
     pct = round(len(matched) / total * 100, 1) if total else 0.0
     return {"matched_keywords": matched, "missing_keywords": missing, "match_percentage": pct}
+
+
+def _spellings(canonical: str) -> set[str]:
+    return _ALIASES.get(canonical, set()) | {canonical}
+
+
+def mentions_skill(text: str, jd_keyword: str) -> bool:
+    """True if the text names the skill, an alias of it, or a more specific skill that proves it
+    (e.g. "REST APIs" for "API design", "MySQL" for "SQL")."""
+    canon = normalize(jd_keyword)
+    terms = {jd_keyword.lower()} | _spellings(canon)
+    for implied in _IMPLIES.get(canon, set()):
+        terms |= _spellings(implied)
+    low = text.lower()
+    return any(re.search(rf"(?<![\w.+#]){re.escape(t)}(?![\w+#])", low) for t in terms)
