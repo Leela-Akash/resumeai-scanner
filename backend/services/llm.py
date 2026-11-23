@@ -16,7 +16,8 @@ from pydantic import BaseModel, ValidationError
 logger = logging.getLogger(__name__)
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# llama-3.3-70b-versatile was retired by Groq on 16 Aug 2026. gpt-oss-120b is Groq's production replacement.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 MAX_RETRIES = 3
 REQUEST_TIMEOUT = httpx.Timeout(45.0, connect=10.0)
 
@@ -72,6 +73,24 @@ def parse_json_object(raw: str) -> dict:
     return data
 
 
+def _build_payload(system: str, user: str, temperature: float, max_tokens: int, json_mode: bool) -> dict:
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        "temperature": temperature,
+    }
+    if GROQ_MODEL.startswith("openai/gpt-oss"):
+        # Reasoning models spend tokens thinking before answering. Keep the thinking short
+        # and leave headroom so the JSON answer isn't cut off.
+        payload["reasoning_effort"] = "low"
+        payload["max_completion_tokens"] = max_tokens + 2000
+    else:
+        payload["max_tokens"] = max_tokens
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+    return payload
+
+
 def _backoff(attempt: int) -> float:
     return min(2**attempt, 8)
 
@@ -91,7 +110,10 @@ async def _post(payload: dict) -> str:
 
         if response.status_code == 200:
             try:
-                return response.json()["choices"][0]["message"]["content"]
+                content = response.json()["choices"][0]["message"]["content"]
+                if content:
+                    return content
+                last_error = "empty response (token limit hit while reasoning)"
             except (KeyError, IndexError, ValueError):
                 last_error = "unexpected response shape"
         elif response.status_code == 429 or response.status_code >= 500:
@@ -117,13 +139,7 @@ async def complete_json(
     max_tokens: int = 1500,
 ) -> T:
     """Ask for a JSON object and validate it against `model`. Retries once on invalid JSON/schema."""
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "response_format": {"type": "json_object"},
-    }
+    payload = _build_payload(system, user, temperature, max_tokens, json_mode=True)
     last_error: Exception | None = None
     for _ in range(2):
         raw = await _post(payload)
@@ -136,10 +152,5 @@ async def complete_json(
 
 
 async def complete_text(system: str, user: str, *, temperature: float = 0.5, max_tokens: int = 500) -> str:
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
+    payload = _build_payload(system, user, temperature, max_tokens, json_mode=False)
     return (await _post(payload)).strip()
