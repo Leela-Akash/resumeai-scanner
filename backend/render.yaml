@@ -17,13 +17,7 @@ services:
         sync: false
       - key: FIREBASE_CLIENT_EMAIL
         sync: false
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-      - key: STRIPE_PRO_PRICE_ID
-        sync: false
-      - key: STRIPE_PREMIUM_PRICE_ID
-        sync: false
+      - key: FREE_SCAN_LIMIT
+        value: "0"
       - key: FRONTEND_URL
         value: https://getshortlisted.me

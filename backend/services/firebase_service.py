@@ -27,38 +27,34 @@ def get_user(uid: str):
     return doc.to_dict() if doc.exists else None
 
 
-def create_user(uid: str, email: str, name: str, photo: str):
-    db.collection("users").document(uid).set({
+def create_user(uid: str, email: str, name: str, photo: str) -> dict:
+    user = {
         "email": email,
         "name": name,
         "photoURL": photo,
         "plan": "free",
         "scansUsed": 0,
-        "scansLimit": 3,
-        "createdAt": firestore.SERVER_TIMESTAMP,
-    })
+    }
+    db.collection("users").document(uid).set({**user, "createdAt": firestore.SERVER_TIMESTAMP})
+    return user
 
 
-def save_scan(uid: str, scan_data: dict):
-    ref = db.collection("scans").add({
+SCAN_FIELDS = (
+    "ats_score", "hire_probability", "score_breakdown", "matched_keywords", "missing_keywords",
+    "match_percentage", "bullet_analysis", "weak_bullets", "improved_bullets", "experience_years",
+    "experience_periods", "required_years", "overall_feedback",
+)
+
+
+def save_scan(uid: str, scan_data: dict) -> str:
+    doc = {k: scan_data.get(k) for k in SCAN_FIELDS if k in scan_data}
+    _, ref = db.collection("scans").add({
+        **doc,
         "userId": uid,
         "jobTitle": scan_data.get("job_title", ""),
-        "ats_score": scan_data.get("ats_score"),
-        "score_breakdown": scan_data.get("score_breakdown", {}),
-        "matched_keywords": scan_data.get("matched_keywords", []),
-        "missing_keywords": scan_data.get("missing_keywords", []),
-        "preferred_keywords_missing": scan_data.get("preferred_keywords_missing", []),
-        "bullet_analysis": scan_data.get("bullet_analysis", []),
-        "resume_sections": scan_data.get("resume_sections", {}),
-        "overall_feedback": scan_data.get("overall_feedback", ""),
-        "hire_probability": scan_data.get("hire_probability", ""),
-        "seniority_match": scan_data.get("seniority_match", ""),
-        "experience_years": scan_data.get("experience_years", {}),
-        "quick_wins": scan_data.get("quick_wins", []),
-        "resume_score_card": scan_data.get("resume_score_card", {}),
         "createdAt": firestore.SERVER_TIMESTAMP,
     })
-    return ref[1].id
+    return ref.id
 
 
 def increment_scan_count(uid: str):
@@ -67,11 +63,12 @@ def increment_scan_count(uid: str):
     })
 
 
-def get_user_scans(uid: str):
+def get_user_scans(uid: str, limit: int = 50):
     docs = (
         db.collection("scans")
         .where("userId", "==", uid)
         .order_by("createdAt", direction=firestore.Query.DESCENDING)
+        .limit(limit)
         .stream()
     )
     return [{"id": d.id, **d.to_dict()} for d in docs]

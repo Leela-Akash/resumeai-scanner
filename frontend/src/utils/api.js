@@ -3,6 +3,8 @@ import { auth } from '../firebase/config'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_URL,
+  // Render's free tier sleeps when idle; the first request can take ~50s to wake it.
+  timeout: 120000,
 })
 
 // Attach Firebase token to every request

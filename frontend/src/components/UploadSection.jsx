@@ -83,6 +83,11 @@ export default function UploadSection({ onResult }) {
           '⚡ Analyze Now'
         )}
       </button>
+      {loading && (
+        <p className="text-slate-500 text-xs text-center">
+          First scan of the day can take up to a minute while the server wakes up.
+        </p>
+      )}
     </div>
   )
 }

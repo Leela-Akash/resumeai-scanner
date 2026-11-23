@@ -8,3 +8,4 @@ venv/
 .venv/
 .firebase/
 *.json.key
+.pytest_cache/

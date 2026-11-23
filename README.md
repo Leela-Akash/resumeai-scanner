@@ -1,169 +1,137 @@
-# ResumeAI Scanner
+# GetShortlisted — ResumeAI Scanner
 
-AI-powered resume scanner that gives you an ATS score in 10 seconds.
-Live at: **https://getshortlisted.me**
+Upload a resume PDF, paste a job description, and get an ATS-style score with the exact
+keywords you're missing and a review of every bullet point.
 
----
-
-## What It Does
-
-- Upload your resume PDF + paste a job description
-- AI analyzes both using a 5-stage pipeline
-- Returns ATS score, matched/missing keywords, bullet improvements, hire probability
-- Saves scan history per user
-- Free tier: 3 scans/month. Pro: unlimited.
+**Live:** https://getshortlisted.me
 
 ---
 
-## Tech Stack
+## How the analysis works
+
+```
+PDF ──► text extraction (PyMuPDF, page/size/scan checks)
+          │
+          ├─► Stage 1  Keyword extraction ─ LLM, JD + resume in parallel, JSON mode
+          │            Keyword matching ─── deterministic: aliases + whole-word fuzzy match
+          ├─► Stage 2  Bullet review ────── one batched LLM call: score 0–10, issues, rewrite
+          ├─► Stage 3  Experience ───────── date ranges from the Experience section only
+          ├─► Stage 4  ATS score ────────── deterministic weighted formula
+          └─► Stage 5  Feedback ─────────── LLM text, falls back to a template on failure
+```
+
+**Score** = keyword match × 0.40 + bullet quality × 0.30 + experience × 0.20 + format × 0.10
+
+Design decisions:
+
+- **LLM output is untrusted input.** Every response is requested in JSON mode and validated
+  with Pydantic (`services/schemas.py`) before it reaches scoring. Invalid output is retried
+  once; if it's still invalid the request fails with a clear error instead of returning a
+  made-up score.
+- **The LLM extracts, code decides.** The model only pulls skills out of text and reviews
+  bullets. Matching and scoring are plain, unit-tested Python, so the same inputs give the
+  same score.
+- **Matching that understands skills.** `Java` doesn't match `JavaScript`, `SQL` doesn't
+  match `NoSQL`, but `Node.js`/`NodeJS` and `Postgres`/`PostgreSQL` do (`services/matching.py`).
+- **No invented achievements.** Bullet rewrites keep the candidate's facts and use
+  `[placeholders]` for metrics they didn't give, rather than inventing "10K users".
+- **Resilient AI calls.** One pooled HTTP client, retries with backoff on 429/5xx/network
+  errors, no retries on 4xx, and user-facing errors that don't leak provider details
+  (`services/llm.py`).
+
+---
+
+## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18 + Vite + Tailwind CSS |
-| Backend | Python FastAPI |
+| Frontend | React 18, Vite, Tailwind CSS |
+| Backend | Python 3.11, FastAPI, Pydantic v2 |
 | AI | Groq API (Llama 3.3 70B) |
+| Matching | RapidFuzz |
+| PDF | PyMuPDF |
 | Auth | Firebase Authentication (Google) |
-| Database | Firebase Firestore |
-| Payments | Stripe |
-| Frontend hosting | GitHub Pages |
-| Backend hosting | Render.com |
+| Database | Cloud Firestore (with security rules in `firestore.rules`) |
+| Hosting | GitHub Pages (frontend), Render (backend, Docker) |
+| CI | GitHub Actions: backend tests + frontend build |
+
+Paid plans aren't built yet. The free-scan limit is controlled by `FREE_SCAN_LIMIT`
+(unset = unlimited).
 
 ---
 
-## Local Development
+## API
 
-### Prerequisites
-- Node.js 18+
-- Python 3.11+
-- Git
+All `/api` routes need a Firebase ID token: `Authorization: Bearer <token>`.
 
-### Backend Setup
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness + whether Groq/Firebase are configured |
+| `POST` | `/api/analyze` | `multipart/form-data`: `resume` (PDF ≤ 5MB, ≤ 5 pages), `job_description` (50–8,000 chars). Rate limit 10/min per IP |
+| `GET` | `/api/history?limit=50` | The signed-in user's past scans, newest first |
 
+Errors: `400` bad input · `401` bad token · `403 FREE_LIMIT_REACHED` · `413` file too large ·
+`422` unreadable/scanned PDF · `429` rate limited · `503` AI provider unavailable.
+
+---
+
+## Local development
+
+### Backend
 ```bash
 cd backend
-python -m venv venv
-venv\Scripts\activate        # Windows
-pip install -r requirements.txt
+python3.11 -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements-dev.txt
+cp .env.example .env    # fill in values, see environment-variables.md
+python main.py          # http://localhost:8000
 ```
 
-Create `backend/.env` with all required variables (see `environment-variables.md`).
-
+### Tests
 ```bash
-python main.py
-# Running at http://localhost:8000
+cd backend
+python -m pytest -q
 ```
+Tests replace Firebase and Groq with fakes, so they need no credentials or network.
 
-### Frontend Setup
-
+### Frontend
 ```bash
 cd frontend
 npm install
-```
-
-Create `frontend/.env.local`:
-```
-VITE_BACKEND_URL=http://localhost:8000
-VITE_FIREBASE_API_KEY=...
-# (see environment-variables.md for full list)
-```
-
-```bash
-npm run dev
-# Running at http://localhost:5173
+# frontend/.env.local -> VITE_BACKEND_URL=http://localhost:8000 plus Firebase web config
+npm run dev             # http://localhost:5173
 ```
 
 ---
 
 ## Deployment
 
-### Deploy Backend to Render
+- **Backend:** Render web service, root `backend`, uses `render.yaml`. Auto-deploys on push to `main`.
+- **Frontend:** `cd frontend && npm run deploy` (builds and pushes to `gh-pages`).
+- **Firestore rules:** paste `firestore.rules` into Firebase Console → Firestore → Rules.
+- Full variable list: `environment-variables.md`. Rollback steps: `rollback-guide.md`.
 
-1. Push code to GitHub: `git push origin main`
-2. Go to https://render.com → New → Web Service
-3. Connect repo `Leela-Akash/resumeai-scanner`
-4. Settings:
-   - Root Directory: `backend`
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Add all environment variables from `environment-variables.md`
-6. Click Deploy
-
-Render auto-deploys on every push to `main`.
-
-### Deploy Frontend to GitHub Pages
-
-```bash
-cd frontend
-npm run deploy
-```
-
-This builds the app and pushes to the `gh-pages` branch automatically.
-
-### Set Environment Variables on Render
-
-1. Render Dashboard → your service → Environment tab
-2. Add each variable from `environment-variables.md` → Backend section
-3. Click Save — service restarts automatically
-
-### Verify Deployment
-
-```bash
-# Test backend health
-curl https://resumeai-scanner.onrender.com/health
-
-# Expected response:
-# {"status":"healthy","timestamp":"...","services":{"groq":"up","firebase":"up"}}
-```
-
-Frontend: https://getshortlisted.me
+Render's free tier sleeps when idle, so the first request after a while takes ~50s.
 
 ---
 
-## Rollback
-
-See `rollback-guide.md` for step-by-step rollback instructions.
-
-**Quick rollback:**
-- Backend: Render Dashboard → Events tab → rollback to previous deploy
-- Frontend: `git revert HEAD && git push && cd frontend && npm run deploy`
-
----
-
-## Monitoring
-
-| URL | Purpose |
-|---|---|
-| `https://resumeai-scanner.onrender.com/health` | Backend health check |
-| `https://getshortlisted.me` | Frontend live site |
-| https://render.com/dashboard | Backend logs and deploys |
-| https://console.firebase.google.com | Auth and Firestore data |
-| https://dashboard.stripe.com | Payment events |
-
----
-
-## Project Structure
+## Project structure
 
 ```
-resumeai-scanner/
-├── backend/
-│   ├── middleware/        # Auth + subscription checks
-│   ├── routes/            # API endpoints
-│   ├── services/          # AI, PDF, Firebase logic
-│   ├── main.py
-│   ├── requirements.txt
-│   └── render.yaml
-├── frontend/
-│   ├── src/
-│   │   ├── components/    # UI components
-│   │   ├── firebase/      # Auth + Firestore
-│   │   ├── hooks/         # useAuth
-│   │   ├── pages/         # Full page components
-│   │   └── utils/         # API client
-│   └── package.json
-├── scripts/
-│   ├── test-backend.sh
-│   └── deploy-frontend.sh
-├── deployment-checklist.md
-├── rollback-guide.md
-└── environment-variables.md
+backend/
+  main.py                    FastAPI app, CORS, rate limiting, health
+  routes/analyze.py          upload validation -> pipeline -> save
+  routes/history.py          paginated scan history
+  middleware/                Firebase token verification, free-plan limit
+  services/grok_service.py   pipeline orchestrator (stages 1–5)
+  services/llm.py            Groq client: JSON mode, validation, retries
+  services/schemas.py        Pydantic models for LLM output
+  services/matching.py       keyword normalisation + matching
+  services/experience.py     experience-section parsing
+  services/pdf_service.py    PDF text extraction + checks
+  tests/                     pytest suite (no network)
+frontend/src/
+  components/                upload, results, score UI
+  firebase/                  auth + Firestore reads
+  hooks/useAuth.js
+firestore.rules              Firestore security rules
 ```
