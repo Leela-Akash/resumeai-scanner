@@ -47,7 +47,7 @@ Design decisions:
 |---|---|
 | Frontend | React 18, Vite, Tailwind CSS |
 | Backend | Python 3.11, FastAPI, Pydantic v2 |
-| AI | Groq API (Llama 3.3 70B) |
+| AI | Groq API (GPT-OSS 120B, configurable via `GROQ_MODEL`) |
 | Matching | RapidFuzz |
 | PDF | PyMuPDF |
 | Auth | Firebase Authentication (Google) |

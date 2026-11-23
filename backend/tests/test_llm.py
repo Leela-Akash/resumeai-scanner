@@ -57,3 +57,19 @@ async def test_gives_up_after_max_retries(monkeypatch):
     _mock_client(monkeypatch, [(500, {})] * 3)
     with pytest.raises(LLMError, match="unavailable"):
         await complete_json("s", "u", KeywordSet)
+
+
+def test_payload_for_reasoning_model(monkeypatch):
+    monkeypatch.setattr(llm, "GROQ_MODEL", "openai/gpt-oss-120b")
+    p = llm._build_payload("s", "u", 0.2, 1000, json_mode=True)
+    assert p["reasoning_effort"] == "low"
+    assert p["max_completion_tokens"] == 3000
+    assert "max_tokens" not in p
+    assert p["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.asyncio
+async def test_empty_content_is_retried(monkeypatch):
+    _mock_client(monkeypatch, [_ok(None), _ok('{"technical_skills": ["Go"]}')])
+    result = await complete_json("s", "u", KeywordSet)
+    assert result.technical_skills == ["Go"]

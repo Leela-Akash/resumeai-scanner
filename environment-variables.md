@@ -16,7 +16,7 @@ Set these in Render Dashboard → your service → Environment tab.
 | `FIREBASE_PRIVATE_KEY` | Firebase private key (with `\n` newlines) | Same JSON file as above |
 | `FRONTEND_URL` | Your frontend domain | `https://getshortlisted.me` |
 | `FREE_SCAN_LIMIT` | Optional. Scans allowed per free user. `0` or unset = unlimited | Leave unset until paid plans exist |
-| `GROQ_MODEL` | Optional. Groq model id | Defaults to `llama-3.3-70b-versatile` |
+| `GROQ_MODEL` | Optional. Groq model id | Defaults to `openai/gpt-oss-120b` |
 
 ### FIREBASE_PRIVATE_KEY format on Render
 Paste the key exactly as it appears in the JSON file.
