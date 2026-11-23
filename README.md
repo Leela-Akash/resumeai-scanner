@@ -14,7 +14,7 @@ PDF ──► text extraction (PyMuPDF, page/size/scan checks)
           │
           ├─► Stage 1  Keyword extraction ─ LLM, JD + resume in parallel, JSON mode
           │            Keyword matching ─── deterministic: aliases + whole-word fuzzy match
-          ├─► Stage 2  Bullet review ────── one batched LLM call: score 0–10, issues, rewrite
+          ├─► Stage 2  Bullet review ────── LLM judges outcome + writes rewrite; code scores 0–10
           ├─► Stage 3  Experience ───────── date ranges from the Experience section only
           ├─► Stage 4  ATS score ────────── deterministic weighted formula
           └─► Stage 5  Feedback ─────────── LLM text, falls back to a template on failure
@@ -33,8 +33,13 @@ Design decisions:
   same score.
 - **Matching that understands skills.** `Java` doesn't match `JavaScript`, `SQL` doesn't
   match `NoSQL`, but `Node.js`/`NodeJS` and `Postgres`/`PostgreSQL` do (`services/matching.py`).
-- **No invented achievements.** Bullet rewrites keep the candidate's facts and use
-  `[placeholders]` for metrics they didn't give, rather than inventing "10K users".
+- **Bullet scores are a fixed rubric.** +3 has a number, +2 strong action verb, +3 states an
+  outcome, +2 uses skills the job asks for. Only "states an outcome" is judged by the LLM; the
+  rest is checked in code, so the same bullet always gets the same score and the issues listed
+  are exactly the points it lost.
+- **No invented achievements.** Rewrites keep the candidate's facts, and any number in a rewrite
+  that wasn't in the original is replaced with a `[placeholder]` in code, even if the model
+  ignores the instruction.
 - **Resilient AI calls.** One pooled HTTP client, retries with backoff on 429/5xx/network
   errors, no retries on 4xx, and user-facing errors that don't leak provider details
   (`services/llm.py`).

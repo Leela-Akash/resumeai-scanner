@@ -1,5 +1,4 @@
 import pytest
-from pydantic import ValidationError
 
 from services.schemas import BulletReview, KeywordSet
 
@@ -14,11 +13,6 @@ def test_keyword_set_cleans_garbage():
     assert ks.hard_skills() == ["Python", "Docker"]
 
 
-@pytest.mark.parametrize("raw,expected", [(7, 7), ("7/10", 7), (7.6, 8), (15, 10), (-2, 0)])
-def test_bullet_score_is_normalised(raw, expected):
-    assert BulletReview.model_validate({"score": raw}).score == expected
-
-
-def test_bullet_score_must_be_numeric():
-    with pytest.raises(ValidationError):
-        BulletReview.model_validate({"score": "great"})
+@pytest.mark.parametrize("raw,expected", [(True, True), ("true", True), ("no", False), (None, False)])
+def test_shows_outcome_is_coerced(raw, expected):
+    assert BulletReview.model_validate({"shows_outcome": raw}).shows_outcome is expected

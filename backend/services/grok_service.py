@@ -15,7 +15,7 @@ import re
 
 from services.experience import SECTION_HEADING, calculate_experience, required_years
 from services.llm import LLMError, complete_json, complete_text
-from services.matching import match_keywords
+from services.matching import match_keywords, mentions_skill
 from services.schemas import BulletBatch, KeywordSet
 
 logger = logging.getLogger(__name__)
@@ -141,6 +141,55 @@ _BULLET_SYSTEM = (
     "so the candidate fills in the real value."
 )
 
+_WEAK_OPENERS = re.compile(r"^(worked on|responsible for|helped|assisted|involved in|participated in)\b", re.I)
+_METRIC = re.compile(r"\d")
+_NUMBER_OUTSIDE_BRACKETS = re.compile(r"\[[^\]]*\]|(~?\d[\d,.]*(?:\s?%|\+|x\b|k\b|ms\b)?)", re.I)
+
+
+def has_metric(bullet: str) -> bool:
+    # Any number counts (team size, %, users, ranks). Years alone don't.
+    without_years = re.sub(r"\b(19|20)\d{2}\b", "", bullet)
+    return bool(_METRIC.search(without_years))
+
+
+def has_strong_verb(bullet: str) -> bool:
+    if _WEAK_OPENERS.match(bullet):
+        return False
+    first = bullet.split(" ", 1)[0].rstrip(",:").lower()
+    return first in _ACTION_VERBS or (first.endswith("ed") and len(first) > 4)
+
+
+def uses_job_skills(bullet: str, jd_keywords: list[str]) -> bool:
+    return any(mentions_skill(bullet, k) for k in jd_keywords)
+
+
+def sanitize_rewrite(original: str, improved: str) -> str:
+    """Replace any number in the rewrite that isn't in the original with a [placeholder]."""
+    known = set(re.findall(r"\d[\d,.]*", original))
+
+    def fix(m: re.Match) -> str:
+        if m.group(1) is None:  # a [placeholder] already
+            return m.group(0)
+        digits = re.match(r"~?(\d[\d,.]*)", m.group(1)).group(1).rstrip(".,")
+        if digits in known:
+            return m.group(0)
+        return "[X%]" if "%" in m.group(1) else "[X]"
+
+    return _NUMBER_OUTSIDE_BRACKETS.sub(fix, improved)
+
+
+def score_bullet(bullet: str, shows_outcome: bool, jd_keywords: list[str]) -> tuple[int, list[str]]:
+    """Rubric: +3 metric, +2 strong verb, +3 outcome, +2 job-relevant skills. Same input, same score."""
+    checks = [
+        (has_metric(bullet), 3, "Add a number: scale, users, % or time saved"),
+        (has_strong_verb(bullet), 2, "Start with a strong action verb"),
+        (shows_outcome, 3, "Say what changed because of your work"),
+        (uses_job_skills(bullet, jd_keywords), 2, "Mention the skills this job asks for"),
+    ]
+    score = sum(points for ok, points, _ in checks if ok)
+    issues = [msg for ok, _, msg in checks if not ok]
+    return score, issues
+
 
 async def bullet_stage(resume_text: str, jd_keywords: list[str]) -> dict:
     bullets = extract_bullets(resume_text)[:MAX_BULLETS]
@@ -148,14 +197,14 @@ async def bullet_stage(resume_text: str, jd_keywords: list[str]) -> dict:
         return {"bullet_analysis": [], "average_score": None, "weak_bullets_count": 0}
 
     numbered = "\n".join(f"{i + 1}. {b}" for i, b in enumerate(bullets))
-    user = f"""Review each resume bullet below. Score 0-10:
-+3 has a concrete number or metric, +2 starts with a strong action verb,
-+3 shows an outcome or impact, +2 uses skills relevant to the job ({', '.join(jd_keywords[:20]) or 'n/a'}).
-Give partial credit. For bullets scoring below 6, write an improved version that keeps every fact
-from the original and uses [placeholders] for missing metrics. Otherwise leave "improved" empty.
+    user = f"""For each resume bullet below decide:
+- shows_outcome: true if it states a result or impact of the work (what improved, who it helped,
+  what it enabled, an award), not just what was built.
+- improved: a stronger version that keeps every fact from the original, adds the result if missing,
+  and uses [placeholders] for any number the candidate must supply. Never write a number yourself.
 
-Return exactly {len(bullets)} reviews, in order:
-{{"reviews": [{{"score": 0, "issues": ["short issue"], "improved": ""}}]}}
+Return exactly {len(bullets)} items, in order:
+{{"reviews": [{{"shows_outcome": false, "improved": ""}}]}}
 
 BULLETS:
 {numbered}"""
@@ -163,15 +212,12 @@ BULLETS:
     if len(batch.reviews) != len(bullets):
         raise LLMError(f"expected {len(bullets)} bullet reviews, got {len(batch.reviews)}")
 
-    analysis = [
-        {
-            "original": b,
-            "score": r.score,
-            "issues": r.issues,
-            "improved": r.improved if r.score < 6 else "",
-        }
-        for b, r in zip(bullets, batch.reviews)
-    ]
+    analysis = []
+    for b, r in zip(bullets, batch.reviews):
+        score, issues = score_bullet(b, r.shows_outcome, jd_keywords)
+        improved = sanitize_rewrite(b, r.improved) if score < 6 and r.improved else ""
+        analysis.append({"original": b, "score": score, "issues": issues, "improved": improved})
+
     avg = round(sum(a["score"] for a in analysis) / len(analysis), 1)
     weak = sum(1 for a in analysis if a["score"] < 6)
     logger.info("Stage 2: avg %.1f, %d weak", avg, weak)

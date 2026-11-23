@@ -40,26 +40,16 @@ class KeywordSet(BaseModel):
 
 
 class BulletReview(BaseModel):
-    score: int = Field(ge=0, le=10)
-    issues: list[str] = Field(default_factory=list)
+    """What the LLM judges about one bullet. The score itself is computed in code."""
+    shows_outcome: bool = False
     improved: str = ""
 
-    @field_validator("score", mode="before")
+    @field_validator("shows_outcome", mode="before")
     @classmethod
-    def _coerce_score(cls, v: object) -> int:
-        # Models sometimes return "7", 7.5 or "7/10". Normalise, then clamp to 0-10.
+    def _coerce_bool(cls, v: object) -> bool:
         if isinstance(v, str):
-            v = v.split("/")[0].strip()
-        try:
-            n = round(float(v))  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            raise ValueError(f"score is not a number: {v!r}")
-        return max(0, min(10, n))
-
-    @field_validator("issues", mode="before")
-    @classmethod
-    def _clean_issues(cls, v: object) -> list[str]:
-        return [s for s in _clean_list(v, limit=4)]
+            return v.strip().lower() in {"true", "yes", "1"}
+        return bool(v)
 
     @field_validator("improved", mode="before")
     @classmethod
