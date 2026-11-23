@@ -74,5 +74,22 @@ def test_format_score_uses_resume_text():
 
 
 def test_extract_bullets_dedupes():
-    text = "• Built a thing that is long enough\n• Built a thing that is long enough\nshort"
+    text = "• Built a thing that is long enough\n• Built a thing that is long enough\nEducation"
     assert pipeline.extract_bullets(text) == ["Built a thing that is long enough"]
+
+
+def test_wrapped_bullets_without_glyphs_are_rejoined():
+    # What PyMuPDF returns for an HTML/Chrome PDF: no bullet glyphs, long lines wrapped.
+    text = """PROJECTS
+Online Banking System | React, Spring Boot
+Jul – Nov 2025
+Built a React (Vite) frontend for customer, staff and admin roles, consuming JWT-secured REST APIs via Axios for
+accounts, fund transfers, loans and notifications.
+Designed the Spring Boot backend with safe fund transfers and role-
+based access control.
+EDUCATION
+KL University"""
+    assert pipeline.extract_bullets(text) == [
+        "Built a React (Vite) frontend for customer, staff and admin roles, consuming JWT-secured REST APIs via Axios for accounts, fund transfers, loans and notifications.",
+        "Designed the Spring Boot backend with safe fund transfers and role-based access control.",
+    ]

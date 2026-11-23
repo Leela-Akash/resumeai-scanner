@@ -24,6 +24,11 @@ _OTHER_HEADINGS = re.compile(
     re.IGNORECASE,
 )
 
+# Any section heading, used by bullet extraction to stop at section boundaries.
+SECTION_HEADING = re.compile(
+    rf"(?:{_EXPERIENCE_HEADINGS.pattern})|(?:{_OTHER_HEADINGS.pattern})", re.IGNORECASE
+)
+
 _SEP = r"\s*(?:-|–|—|to)\s*"
 _DATE = r"(?:[A-Za-z]{3,9}\.?\s+\d{4}|\d{1,2}[/-]\d{4}|\d{4})"
 _RANGE = re.compile(rf"({_DATE}){_SEP}(present|current|now|ongoing|till date|{_DATE})", re.IGNORECASE)

@@ -50,3 +50,9 @@ def test_empty_jd_keywords():
 
 def test_normalize():
     assert normalize("  React.js ") == "react"
+
+
+def test_specific_skill_proves_general_one():
+    assert keywords_match("SQL", "MySQL")
+    assert keywords_match("API design", "RESTful APIs")
+    assert not keywords_match("MySQL", "SQL")  # the reverse isn't true

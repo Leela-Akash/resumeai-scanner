@@ -13,7 +13,7 @@ import asyncio
 import logging
 import re
 
-from services.experience import calculate_experience, required_years
+from services.experience import SECTION_HEADING, calculate_experience, required_years
 from services.llm import LLMError, complete_json, complete_text
 from services.matching import match_keywords
 from services.schemas import BulletBatch, KeywordSet
@@ -66,27 +66,72 @@ async def keyword_stage(resume_text: str, jd_text: str) -> dict:
 # Stage 2: bullets
 # ─────────────────────────────────────────────
 
-_BULLET_START = re.compile(r"^[•·\-–*►▪▸○]+\s*")
-_ACTION_START = re.compile(
-    r"^(Led|Built|Designed|Developed|Implemented|Architected|Optimized|Deployed|Automated|"
-    r"Managed|Created|Launched|Improved|Reduced|Increased|Delivered|Streamlined|Engineered|"
-    r"Migrated|Integrated)\b"
-)
+_BULLET_START = re.compile(r"^[•·\-–*►▪▸○●■◦]+\s*")
+_ACTION_VERBS = {
+    "led", "built", "wrote", "set", "ran", "made", "won", "drove", "shipped", "owned", "created",
+    "designed", "developed", "implemented", "architected", "optimized", "optimised", "deployed",
+    "automated", "managed", "launched", "improved", "reduced", "increased", "delivered",
+    "streamlined", "engineered", "migrated", "integrated", "streamed", "containerised",
+    "containerized", "added", "refactored", "trained", "tested", "debugged", "collaborated",
+    "mentored", "researched", "analyzed", "analysed", "configured", "maintained", "published",
+}
+_HEADING = re.compile(r"^[A-Z][A-Z &/]{2,40}$")
+
+
+def _starts_bullet(line: str) -> bool:
+    if _BULLET_START.match(line):
+        return True
+    first = line.split(" ", 1)[0].rstrip(",:").lower()
+    return first in _ACTION_VERBS or (first.endswith("ed") and line[:1].isupper() and len(first) > 4)
+
+
+def _is_boundary(line: str) -> bool:
+    """Lines that end a bullet: headings, project/role titles, bare dates."""
+    return bool(
+        _HEADING.match(line)
+        or SECTION_HEADING.match(line)
+        or " | " in line
+        or re.fullmatch(r"[A-Za-z]{3,9}\.?\s*(\d{4})?\s*[–-]\s*[A-Za-z]*\.?\s*\d{4}|\d{4}\s*[–-]\s*\d{4}|[A-Za-z]{3,9} \d{4}", line)
+    )
 
 
 def extract_bullets(resume_text: str) -> list[str]:
+    """Find achievement bullets, re-joining lines that the PDF wrapped.
+
+    PDF text extraction usually drops the bullet glyph and splits long bullets across
+    lines, so a bullet starts at a glyph or an action verb and continues until the
+    next bullet start, heading, or a line that ends a sentence."""
     bullets: list[str] = []
-    for line in resume_text.splitlines():
-        line = line.strip()
-        if len(line) < 20:
+    current: list[str] = []
+
+    def flush():
+        if current:
+            text = " ".join(current)
+            text = re.sub(r"(\w)- (\w)", r"\1-\2", text)  # re-join words hyphenated at a line break
+            if len(text) >= 25:
+                bullets.append(text)
+            current.clear()
+
+    for raw in resume_text.splitlines():
+        line = raw.strip()
+        if not line:
+            flush()
             continue
-        if _BULLET_START.match(line):
-            cleaned = _BULLET_START.sub("", line).strip()
-            if cleaned:
-                bullets.append(cleaned)
-        elif _ACTION_START.match(line):
-            bullets.append(line)
-    return list(dict.fromkeys(bullets))[:15]
+        if _is_boundary(line):
+            flush()
+            continue
+        if _starts_bullet(line):
+            flush()
+            current.append(_BULLET_START.sub("", line).strip())
+        elif current and (len(current[-1]) >= 70 or current[-1].endswith("-") or line[:1].islower()):
+            # Only a long line (or one ending mid-word) can have wrapped onto this one.
+            current.append(line)
+        else:
+            flush()
+        if current and current[-1].endswith((".", "!")) and len(current[-1]) < 95:
+            flush()
+    flush()
+    return list(dict.fromkeys(b for b in bullets if b))[:15]
 
 
 _BULLET_SYSTEM = (
@@ -141,15 +186,15 @@ def format_quality_score(resume_text: str) -> int:
     """0-100 for structure an ATS can parse: core sections, bullets, dates, contact info."""
     t = resume_text.lower()
     score = 0
-    if re.search(r"\b(experience|work history|employment|internships?)\b", t):
+    if re.search(r"\b(experience|work history|employment|internships?|projects?)\b", t):
         score += 20
     if re.search(r"\b(skills|technical skills|competencies)\b", t):
         score += 15
     if re.search(r"\b(education|university|college|b\.?tech|bachelor)\b", t):
         score += 15
-    if re.search(r"\bprojects?\b", t):
+    if re.search(r"\b(summary|profile|objective)\b", t):
         score += 10
-    if len(re.findall(r"^[•·\-–*►▪▸○]", resume_text, re.MULTILINE)) >= 5:
+    if len(extract_bullets(resume_text)) >= 5:
         score += 20
     if len(re.findall(r"\b(19|20)\d{2}\b", resume_text)) >= 2:
         score += 10
@@ -203,18 +248,29 @@ FALLBACK_FEEDBACK = (
 
 
 async def feedback_stage(combined: dict) -> str:
-    system = "You are a career counselor. Write honest, specific, actionable resume feedback. Plain text, no markdown."
-    user = f"""Write 150-220 words of feedback for this resume against the job.
+    system = (
+        "You are a career counselor writing resume feedback. Plain text, no markdown. "
+        "Use ONLY the facts provided. Do not mention any technology, project, job or number "
+        "that is not in the facts. Never suggest claiming skills the candidate doesn't have."
+    )
+    bullets = "\n".join(
+        f"- ({b['score']}/10) {b['original'][:140]}" for b in combined.get("bullet_analysis", [])
+    ) or "- none detected"
+    user = f"""Write 150-200 words of feedback on this resume for this job.
 
+FACTS
 ATS score: {combined['ats_score']}/100
-Keyword match: {combined['match_percentage']}% (missing: {', '.join(combined['missing_keywords'][:6]) or 'none'})
-Bullet quality: {combined.get('average_score') or 'n/a'}/10
-Experience: {combined['total_years']} years (role asks for {combined['required_years']})
+Job asks for: {', '.join(combined['matched_keywords'] + combined['missing_keywords']) or 'n/a'}
+Resume already shows: {', '.join(combined['matched_keywords']) or 'none of them'}
+Missing from resume: {', '.join(combined['missing_keywords']) or 'nothing'}
+Work experience found: {combined['total_years']} years (role asks for {combined['required_years'] or 'no minimum'})
+Resume bullets (score/10):
+{bullets}
 
-Cover: overall assessment, 2 strengths, 2-3 gaps, 3 concrete next steps.
-Do not tell the candidate to claim skills they don't have."""
+Cover: one-line overall assessment, 2 real strengths from the facts, 2 gaps, 3 concrete next steps.
+For missing skills, suggest learning them or showing them in a small project, not adding them unearned."""
     try:
-        return await complete_text(system, user, temperature=0.4, max_tokens=450)
+        return await complete_text(system, user, temperature=0.3, max_tokens=500)
     except LLMError as e:
         logger.warning("Stage 5 failed, using fallback: %s", e)
         return FALLBACK_FEEDBACK

@@ -28,6 +28,17 @@ _ALIASES: dict[str, set[str]] = {
 }
 _ALIAS_LOOKUP = {spelling: canon for canon, spellings in _ALIASES.items() for spelling in spellings}
 
+# A resume skill on the right also proves the broader JD skill on the left.
+_IMPLIES: dict[str, set[str]] = {
+    "sql": {"mysql", "postgresql", "sqlite", "sql server", "oracle", "mariadb", "dbms"},
+    "api design": {"rest", "graphql", "fastapi", "spring boot", "express"},
+    "rest api": {"rest"},
+    "javascript": {"typescript", "react", "node"},
+    "cloud": {"aws", "gcp", "azure"},
+    "containers": {"docker", "kubernetes"},
+    "version control": {"git", "github"},
+}
+
 
 def normalize(keyword: str) -> str:
     k = keyword.lower().strip()
@@ -38,7 +49,7 @@ def normalize(keyword: str) -> str:
 
 def keywords_match(jd_kw: str, resume_kw: str) -> bool:
     a, b = normalize(jd_kw), normalize(resume_kw)
-    if a == b:
+    if a == b or b in _IMPLIES.get(a, set()):
         return True
     # Very short skills (Go, C, R, SQL, AWS) must match exactly; fuzzy matching them is noise.
     if min(len(a), len(b)) <= 4:
