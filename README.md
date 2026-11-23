@@ -51,7 +51,7 @@ Design decisions:
 | Matching | RapidFuzz |
 | PDF | PyMuPDF |
 | Auth | Firebase Authentication (Google) |
-| Database | Cloud Firestore (with security rules in `firestore.rules`) |
+| Database | Cloud Firestore, accessed only by the backend (rules deny browser access) |
 | Hosting | GitHub Pages (frontend), Render (backend, Docker) |
 | CI | GitHub Actions: backend tests + frontend build |
 
@@ -131,7 +131,7 @@ backend/
   tests/                     pytest suite (no network)
 frontend/src/
   components/                upload, results, score UI
-  firebase/                  auth + Firestore reads
+  firebase/                  auth config; history via the backend API
   hooks/useAuth.js
 firestore.rules              Firestore security rules
 ```

@@ -8,7 +8,7 @@ import HistoryPage from './pages/HistoryPage'
 import PricingPage from './pages/PricingPage'
 
 export default function App() {
-  const { user, userData } = useAuth()
+  const { user } = useAuth()
   const [result, setResult] = useState(null)
   const [currentPage, setCurrentPage] = useState('scan')
 
