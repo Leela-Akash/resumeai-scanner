@@ -7,18 +7,20 @@ const HIRE_COLOR = { High: 'text-green-400', Medium: 'text-yellow-400', Low: 'te
 function formatDate(ts) {
   if (!ts) return ''
   const d = ts.toDate ? ts.toDate() : new Date(ts)
+  if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export default function HistoryPage({ user, onViewResult }) {
   const [scans, setScans] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    getUserScans(user.uid).then((data) => {
-      setScans(data)
-      setLoading(false)
-    })
+    getUserScans()
+      .then(setScans)
+      .catch(() => setError('Could not load your history. Try again in a minute.'))
+      .finally(() => setLoading(false))
   }, [user.uid])
 
   if (loading) {
@@ -30,6 +32,10 @@ export default function HistoryPage({ user, onViewResult }) {
         </svg>
       </div>
     )
+  }
+
+  if (error) {
+    return <p className="text-center py-20 text-red-400">{error}</p>
   }
 
   if (scans.length === 0) {
@@ -62,7 +68,7 @@ export default function HistoryPage({ user, onViewResult }) {
             </div>
           </div>
           <button
-            onClick={() => onViewResult(scan)}
+            onClick={() => onViewResult({ ...scan, job_title: scan.jobTitle })}
             className="shrink-0 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
           >
             View Result

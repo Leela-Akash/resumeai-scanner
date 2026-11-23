@@ -58,7 +58,7 @@ VITE_BACKEND_URL=http://localhost:8000
    - Authentication → Sign-in method → Google → Enable
 4. Create Firestore database:
    - Firestore Database → Create database → Start in production mode → Mumbai region
-   - Rules tab → paste the contents of `firestore.rules` from this repo → Publish
+   - Rules tab → paste the contents of `firestore.rules` from this repo → Publish (denies all browser access; the backend uses the Admin SDK)
      (test mode lets anyone read and write every document, and expires after 30 days)
 5. Get web app config:
    - Project Settings → Your apps → Web → Register app → copy firebaseConfig
